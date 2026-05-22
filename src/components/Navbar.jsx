@@ -10,7 +10,7 @@ export default function Navbar({ vistaActual, onNavegar, usuario, abrirAuth }) {
   ];
 
   return (
-    <nav style={{ display: "flex", justifyContent: "space-between", padding: "1rem 2rem", background: "#111", alignItems: "center", borderBottom: "1px solid var(--border-color, #222)" }}>
+    <nav style={{ display: "flex", justifyContent: "space-between", padding: "1rem 2rem", background: "#111", alignItems: "center", borderBottom: "1px solid #222" }}>
       <div onClick={() => onNavegar("home")} style={{ color: "#fff", fontWeight: "bold", fontSize: "1.3rem", cursor: "pointer" }}>
         ⚽ El Tercer Tiempo
       </div>
@@ -35,13 +35,13 @@ export default function Navbar({ vistaActual, onNavegar, usuario, abrirAuth }) {
         {usuario ? (
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <span style={{ fontSize: "20px" }}>{usuario.avatar}</span>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <span style={{ color: "#fff", fontSize: "14px", fontWeight: "bold" }}>{usuario.nick}</span>
-              <span style={{ color: "#666", fontSize: "11px" }}>{usuario.equipo}</span>
-            </div>
+            <span style={{ color: "#fff", fontSize: "14px", fontWeight: "bold" }}>{usuario.nick}</span>
             <button 
-              onClick={() => import("../supabase").then(({ supabase }) => supabase.auth.signOut())} 
-              style={{ background: "none", border: "1px solid #444", color: "#666", padding: "4px 8px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" }}
+              onClick={async () => {
+                const { supabase } = await import("../supabase");
+                await supabase.auth.signOut();
+              }} 
+              style={{ background: "none", border: "1px solid #444", color: "#aaa", padding: "4px 8px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" }}
             >
               Salir
             </button>

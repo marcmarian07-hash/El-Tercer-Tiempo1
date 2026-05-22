@@ -308,3 +308,5 @@ function Footer() {
     </footer>
   )
 }
+
+export default App;
