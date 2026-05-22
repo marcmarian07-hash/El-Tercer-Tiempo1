@@ -1,116 +1,165 @@
-import { useState } from 'react';
-// Asegúrate de que la ruta a tu cliente de supabase sea la correcta en tu proyecto
-import { supabase } from '../supabase'; 
+import React, { useState, useEffect } from "react";
+import { supabase } from "../supabase";
 
-const styles = {
-    navContainer: {
-        position: 'sticky', top: 0, zIndex: 100, padding: '1.25rem 2rem', display: 'flex', justifyContent: 'center',
-    },
-    nav: {
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: '1200px',
-        padding: '0.75rem 1.5rem', borderRadius: '16px', border: '1px solid var(--border-color)',
-        backgroundColor: 'var(--card-bg)', 
-        backdropFilter: 'blur(12px)', 
-        boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.1)',
-        transition: 'background-color 0.3s, border-color 0.3s'
-    },
-    logo: {
-        fontFamily: '"Inter", system-ui, sans-serif', fontSize: '18px', fontWeight: '700',
-        letterSpacing: '-0.5px', color: 'var(--text-color)', cursor: 'pointer', userSelect: 'none',
-    },
-    accent: { color: '#E24B4A', fontWeight: '800' },
-    links: { display: 'flex', gap: '6px', alignItems: 'center' },
-    btn: {
-        background: 'none', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px',
-        fontWeight: '500', color: 'var(--muted-color)', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s ease',
-    },
-    btnActive: {
-        background: 'var(--border-color)', border: 'none', borderRadius: '8px', padding: '8px 16px',
-        fontSize: '13px', color: 'var(--text-color)', cursor: 'pointer', fontWeight: '600', transition: 'all 0.2s ease',
-    },
-    btnAuth: {
-        background: 'var(--text-color)', color: 'var(--bg-color)', border: 'none', borderRadius: '8px', padding: '8px 16px',
-        fontSize: '13px', fontWeight: '600', cursor: 'pointer', marginLeft: '12px', transition: 'all 0.2s ease',
-    },
-    perfilNav: {
-        display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-color)',
-        marginLeft: '12px', paddingLeft: '14px', borderLeft: '1px solid var(--border-color)'
-    },
-    btnLogout: {
-        background: 'none', border: 'none', color: '#E24B4A', cursor: 'pointer', fontSize: '12px',
-        fontWeight: '600', padding: '4px 8px', borderRadius: '6px', marginLeft: '4px', transition: 'all 0.2s'
-    }
-};
+export default function Navbar() {
+  const [showModal, setShowModal] = useState(false);
+  const [isRegister, setIsRegister] = useState(false); // Para alternar entre Login y Registro
+  const [user, setUser] = useState(null);
 
-const links = [
-    { id: 'home', label: 'Inicio' },
-    { id: 'polemica', label: 'Polémicas' },
-    { id: 'tabla', label: 'Liga Real' },
-    { id: 'noticias', label: 'Noticias' },
-    { id: 'foro', label: 'Foro' },
-];
+  // Campos del formulario
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [team, setTeam] = useState("Real Madrid"); // Equipo por defecto
 
-function Navbar({ vistaActual, onNavegar, usuario, abrirAuth }) {
-    const toggleTheme = () => {
-        document.body.classList.toggle('light-mode');
-    };
+  // Lista de algunos equipos de Primera
+  const teams = [
+    "Athletic Club", "Atlético de Madrid", "FC Barcelona", 
+    "Getafe CF", "Girona FC", "Real Madrid", "Real Sociedad", 
+    "Sevilla FC", "Valencia CF", "Villarreal CF"
+  ];
 
-    const handleLogout = async () => {
-        const { error } = await supabase.auth.signOut();
-        if (error) {
-            console.error('Error al cerrar sesión:', error.message);
-        } else {
-            // Recargamos para limpiar los estados locales rápidamente o dejas que App.jsx maneje el estado de auth
-            window.location.reload(); 
+  useEffect(() => {
+    // Comprobar si hay un usuario logueado al cargar la página
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user || null);
+    });
+
+    // Escuchar cambios en el estado de autenticación
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    if (isRegister) {
+      // Proceso de Registro
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username: username,
+            team: team,
+            avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${username}` // Avatar automático divertido
+          }
         }
-    };
+      });
+      if (error) alert("Error en el registro: " + error.message);
+      else {
+        alert("¡Registro correcto! Ya puedes iniciar sesión.");
+        setIsRegister(false);
+      }
+    } else {
+      // Proceso de Inicio de Sesión
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) alert("Error al entrar: " + error.message);
+      else setShowModal(false);
+    }
+  };
 
-    return (
-        <div style={styles.navContainer}>
-            <nav style={styles.nav}>
-                {/* Logo + Botón Modo */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <button onClick={toggleTheme} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' }}>
-                        🌓
-                    </button>
-                    <div style={styles.logo} onClick={() => onNavegar('home')}>
-                        El <span style={styles.accent}>Tercer</span> Tiempo
-                    </div>
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  return (
+    <nav style={{ display: "flex", justifyContent: "space-between", padding: "1rem 2rem", background: "#111", alignItems: "center" }}>
+      <div style={{ color: "#fff", fontWeight: "bold", fontSize: "1.2rem" }}>El Tercer Tiempo</div>
+      
+      <div>
+        {user ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <img 
+              src={user.user_metadata?.avatar_url} 
+              alt="Avatar" 
+              style={{ width: "35px", height: "35px", borderRadius: "50%", background: "#333" }}
+            />
+            <span style={{ color: "#fff" }}>¡Hola, {user.user_metadata?.username || "Usuario"}! ({user.user_metadata?.team})</span>
+            <button onClick={handleLogout} style={{ background: "#e53e3e", color: "white", border: "none", padding: "5px 10px", borderRadius: "5px", cursor: "pointer" }}>
+              Salir
+            </button>
+          </div>
+        ) : (
+          <button 
+            onClick={() => setShowModal(true)} 
+            style={{ background: "#e53e3e", color: "white", border: "none", padding: "8px 16px", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}
+          >
+            Iniciar Sesión
+          </button>
+        )}
+      </div>
+
+      {/* MODAL DE AUTENTICACIÓN */}
+      {showModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
+          <div style={{ background: "#222", padding: "2rem", borderRadius: "10px", width: "320px", position: "relative", border: "1px solid #333", color: "#fff" }}>
+            <button onClick={() => setShowModal(false)} style={{ position: "absolute", top: "10px", right: "10px", background: "none", border: "none", color: "#666", fontSize: "1.2rem", cursor: "pointer" }}>✕</button>
+            
+            <h3 style={{ textAlign: "center", marginBottom: "1.5rem" }}>{isRegister ? "Crear Cuenta" : "Iniciar Sesión"}</h3>
+            
+            <form onSubmit={handleAuth} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {isRegister && (
+                <input 
+                  type="text" 
+                  placeholder="Tu Nombre / Nick" 
+                  value={username} 
+                  onChange={(e) => setUsername(e.target.value)} 
+                  required 
+                  style={{ padding: "8px", borderRadius: "5px", border: "1px solid #444", background: "#111", color: "#fff" }}
+                />
+              )}
+              
+              <input 
+                type="email" 
+                placeholder="Correo Electrónico" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                required 
+                style={{ padding: "8px", borderRadius: "5px", border: "1px solid #444", background: "#111", color: "#fff" }}
+              />
+              
+              <input 
+                type="password" 
+                placeholder="Contraseña" 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
+                required 
+                style={{ padding: "8px", borderRadius: "5px", border: "1px solid #444", background: "#111", color: "#fff" }}
+              />
+
+              {isRegister && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                  <label style={{ fontSize: "0.85rem", color: "#aaa" }}>Tu Equipo:</label>
+                  <select 
+                    value={team} 
+                    onChange={(e) => setTeam(e.target.value)}
+                    style={{ padding: "8px", borderRadius: "5px", border: "1px solid #444", background: "#111", color: "#fff" }}
+                  >
+                    {teams.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </div>
+              )}
 
-                {/* Links */}
-                <div style={styles.links}>
-                    {links.map(l => (
-                        <button
-                            key={l.id}
-                            style={vistaActual === l.id ? styles.btnActive : styles.btn}
-                            onClick={() => onNavegar(l.id)}
-                        >
-                            {l.label}
-                        </button>
-                    ))}
+              <button type="submit" style={{ background: "#e53e3e", color: "white", border: "none", padding: "10px", borderRadius: "5px", cursor: "pointer", fontWeight: "bold", marginTop: "10px" }}>
+                {isRegister ? "Registrarse" : "Entrar"}
+              </button>
+            </form>
 
-                    {usuario ? (
-                        <div style={styles.perfilNav}>
-                            <span title={usuario.equipo}>{usuario.avatar}</span>
-                            <strong>{usuario.nick || usuario.nombre}</strong>
-                            <button 
-                                onClick={handleLogout} 
-                                style={styles.btnLogout}
-                                title="Cerrar sesión"
-                            >
-                                Salir
-                            </button>
-                        </div>
-                    ) : (
-                        <button style={styles.btnAuth} onClick={abrirAuth}>
-                            Identificarse
-                        </button>
-                    )}
-                </div>
-            </nav>
+            <p style={{ textAlign: "center", fontSize: "0.85rem", marginTop: "15px", color: "#aaa" }}>
+              {isRegister ? "¿Ya tienes cuenta? " : "¿No tienes cuenta? "}
+              <span 
+                onClick={() => setIsRegister(!isRegister)} 
+                style={{ color: "#e53e3e", cursor: "pointer", textDecoration: "underline" }}
+              >
+                {isRegister ? "Inicia sesión" : "Regístrate aquí"}
+              </span>
+            </p>
+          </div>
         </div>
-    );
+      )}
+    </nav>
+  );
 }
-
-export default Navbar;
