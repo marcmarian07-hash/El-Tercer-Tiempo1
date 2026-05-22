@@ -1,0 +1,35 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* MODO OSCURO: Gris Grafito (no negro absoluto) */
+  --bg-color: #1a1a1a;        /* Un tono gris oscuro, evita el negro profundo */
+  --text-color: #d1d1d1;      /* Gris claro, reduce el brillo de las letras blancas */
+  --card-bg: #262626;        /* Fondo de tarjeta ligeramente más claro que el fondo */
+  --border-color: #3d3d3d;    /* Borde sutil, no agresivo */
+  --muted-color: #999999;
+  --card-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  --accent-soft: rgba(226, 75, 74, 0.2);
+}
+.light-mode {
+  /* Fondo con textura sutil */
+  --bg-color: #e8e8e8;
+  --text-color: #2b2b2b;
+  --card-bg: #ffffff;
+  --border-color: #d1d1d1;
+  --muted-color: #777777;
+  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Sombra suave para dar altura */
+  --accent-soft: rgba(226, 75, 74, 0.1);       /* Versión suave de tu rojo */
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.3s, color 0.3s;
+  margin: 0;
+  font-family: sans-serif;
+}
+
