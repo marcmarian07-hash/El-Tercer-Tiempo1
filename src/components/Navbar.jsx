@@ -12,7 +12,7 @@ export default function Navbar({ vistaActual, onNavegar, usuario, abrirAuth }) {
   return (
     <nav style={{ display: "flex", justifyContent: "space-between", padding: "1rem 2rem", background: "#111", alignItems: "center", borderBottom: "1px solid #222" }}>
       <div onClick={() => onNavegar("home")} style={{ color: "#fff", fontWeight: "bold", fontSize: "1.3rem", cursor: "pointer" }}>
-        ⚽ El Tercer Tiempo
+        El Tercer Tiempo
       </div>
       
       <div style={{ display: "flex", gap: "20px" }}>
