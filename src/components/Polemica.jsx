@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { db } from '../supabase'
+import { supabase } from '../supabase' // ¡Corregido! Ahora se llama igual que en tu archivo de configuración
 
 // ── FINGERPRINT ANTIFRAUDE ──
 function getFingerprint() {
@@ -146,10 +146,10 @@ export default function Polemica() {
   const [conteo, setConteo] = useState({})
   const [loading, setLoading] = useState(true)
 
-  // Cargar polémicas + votos
+  // Cargar polémicas + votos (Corregido con 'supabase')
   useEffect(() => {
     async function load() {
-      const { data: pols } = await db
+      const { data: pols } = await supabase
         .from('polemicas')
         .select('*')
         .eq('activa', true)
@@ -159,7 +159,7 @@ export default function Polemica() {
       setPolemicas(pols)
 
       const ids = pols.map(p => p.id)
-      const { data: votos } = await db
+      const { data: votos } = await supabase
         .from('votos')
         .select('polemica_id, tipo')
         .in('polemica_id', ids)
@@ -175,9 +175,9 @@ export default function Polemica() {
     load()
   }, [])
 
-  // Suscripción tiempo real
+  // Suscripción tiempo real (Corregido con 'supabase')
   useEffect(() => {
-    const channel = db.channel('votos-rt')
+    const channel = supabase.channel('votos-rt')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votos' }, payload => {
         const { polemica_id, tipo } = payload.new
         setConteo(prev => ({
@@ -189,16 +189,16 @@ export default function Polemica() {
         }))
       })
       .subscribe()
-    return () => db.removeChannel(channel)
+    return () => supabase.removeChannel(channel)
   }, [])
 
-  // Votar
+  // Votar (Corregido con 'supabase')
   const handleVote = async (polId, tipo) => {
     const votados = getVotados()
     if (votados[polId]) return
 
     const fp = getFingerprint()
-    const { error } = await db.from('votos').insert({ polemica_id: polId, tipo, fingerprint: fp })
+    const { error } = await supabase.from('votos').insert({ polemica_id: polId, tipo, fingerprint: fp })
     if (error) { console.error(error); return }
 
     saveVotado(polId, tipo)
