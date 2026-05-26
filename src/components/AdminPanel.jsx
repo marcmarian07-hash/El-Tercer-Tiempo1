@@ -1,11 +1,22 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
+const inputStyle = {
+  width: '100%', padding: '9px 12px', borderRadius: '8px', fontSize: '13px',
+  background: 'var(--bg-color)', border: '1px solid var(--border-color)',
+  color: 'var(--text-color)', marginBottom: '1rem', boxSizing: 'border-box'
+}
+
 export default function AdminPanel() {
   const [pendientes, setPendientes] = useState([])
   const [publicadas, setPublicadas] = useState([])
   const [videoUrls, setVideoUrls] = useState({})
   const [tab, setTab] = useState('pendientes')
+
+  const [form, setForm] = useState({
+    partido: '', titulo: '', descripcion: '', minuto: '', jornada: '', video_url: ''
+  })
+  const [enviando, setEnviando] = useState(false)
 
   useEffect(() => {
     cargarPendientes()
@@ -22,27 +33,11 @@ export default function AdminPanel() {
     if (data) setPublicadas(data)
   }
 
-  const crearSimulacion = async () => {
-    const { error } = await supabase.from('polemicas_candidatas').insert([{
-      partido: 'Equipo A vs Equipo B',
-      titulo: 'Polémica de prueba ' + new Date().toLocaleTimeString(),
-      descripcion: 'Detalle de la jugada polémica que generó debate en redes.',
-      minuto: '90',
-      jornada: 1
-    }])
-    if (error) alert("Error al crear: " + error.message)
-    else cargarPendientes()
-  }
-
   const aceptar = async (item) => {
     const { error } = await supabase.from('polemicas').insert([{
-      partido: item.partido,
-      titulo: item.titulo,
-      descripcion: item.descripcion,
-      minuto: item.minuto,
-      jornada: item.jornada,
-      video_url: videoUrls[item.id] || null,
-      activa: true
+      partido: item.partido, titulo: item.titulo, descripcion: item.descripcion,
+      minuto: item.minuto, jornada: item.jornada,
+      video_url: videoUrls[item.id] || null, activa: true
     }])
     if (error) { alert("Error al publicar: " + error.message); return }
     await supabase.from('polemicas_candidatas').delete().eq('id', item.id)
@@ -63,6 +58,27 @@ export default function AdminPanel() {
     cargarPublicadas()
   }
 
+  const publicarManual = async () => {
+    if (!form.partido || !form.titulo || !form.descripcion) {
+      alert('Partido, título y descripción son obligatorios.'); return
+    }
+    setEnviando(true)
+    const { error } = await supabase.from('polemicas').insert([{
+      partido: form.partido,
+      titulo: form.titulo,
+      descripcion: form.descripcion,
+      minuto: form.minuto || '90',
+      jornada: parseInt(form.jornada) || 1,
+      video_url: form.video_url || null,
+      activa: true
+    }])
+    if (error) { alert("Error: " + error.message); setEnviando(false); return }
+    setForm({ partido: '', titulo: '', descripcion: '', minuto: '', jornada: '', video_url: '' })
+    cargarPublicadas()
+    setTab('publicadas')
+    setEnviando(false)
+  }
+
   const tabStyle = (t) => ({
     padding: '8px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700',
     border: tab === t ? '1px solid var(--text-color)' : '1px solid var(--border-color)',
@@ -74,27 +90,23 @@ export default function AdminPanel() {
     <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto', color: 'var(--text-color)' }}>
       <h2 style={{ marginBottom: '1.5rem', fontSize: '20px', fontWeight: '800' }}>🛠️ Panel de Moderación</h2>
 
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '2rem', flexWrap: 'wrap' }}>
         <button onClick={() => setTab('pendientes')} style={tabStyle('pendientes')}>
           Pendientes {pendientes.length > 0 && `(${pendientes.length})`}
         </button>
         <button onClick={() => setTab('publicadas')} style={tabStyle('publicadas')}>
           Publicadas {publicadas.length > 0 && `(${publicadas.length})`}
         </button>
+        <button onClick={() => setTab('crear')} style={tabStyle('crear')}>
+          ✍️ Crear manual
+        </button>
       </div>
 
       {tab === 'pendientes' && (
         <>
-          <button onClick={crearSimulacion} style={{
-            padding: '10px 18px', cursor: 'pointer', background: 'var(--card-bg)',
-            border: '1px solid var(--border-color)', borderRadius: '10px',
-            color: 'var(--text-color)', fontSize: '13px', marginBottom: '1.5rem'
-          }}>➕ Crear Polémica de Prueba</button>
-
           {pendientes.length === 0 && (
             <p style={{ color: 'var(--muted-color)', fontSize: '14px' }}>No hay polémicas pendientes.</p>
           )}
-
           {pendientes.map(item => (
             <div key={item.id} style={{
               border: '1px solid var(--border-color)', padding: '1.25rem',
@@ -110,11 +122,7 @@ export default function AdminPanel() {
                 placeholder="URL del vídeo (YouTube...) — opcional"
                 value={videoUrls[item.id] || ''}
                 onChange={e => setVideoUrls(prev => ({ ...prev, [item.id]: e.target.value }))}
-                style={{
-                  width: '100%', padding: '9px 12px', borderRadius: '8px', fontSize: '13px',
-                  background: 'var(--bg-color)', border: '1px solid var(--border-color)',
-                  color: 'var(--text-color)', marginBottom: '1rem', boxSizing: 'border-box'
-                }}
+                style={{ ...inputStyle, marginBottom: '1rem' }}
               />
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button onClick={() => aceptar(item)} style={{
@@ -159,6 +167,50 @@ export default function AdminPanel() {
             </div>
           ))}
         </>
+      )}
+
+      {tab === 'crear' && (
+        <div style={{ border: '1px solid var(--border-color)', padding: '1.5rem', borderRadius: '14px', background: 'var(--card-bg)' }}>
+          <h3 style={{ marginBottom: '1.5rem', fontSize: '16px', fontWeight: '800' }}>✍️ Publicar Polémica Manual</h3>
+
+          <label style={{ fontSize: '12px', color: 'var(--muted-color)', fontWeight: '700', textTransform: 'uppercase' }}>Partido *</label>
+          <input style={inputStyle} placeholder="Ej: Real Madrid vs FC Barcelona"
+            value={form.partido} onChange={e => setForm(p => ({ ...p, partido: e.target.value }))} />
+
+          <label style={{ fontSize: '12px', color: 'var(--muted-color)', fontWeight: '700', textTransform: 'uppercase' }}>Título *</label>
+          <input style={inputStyle} placeholder="Ej: ¿Era penalti la mano de Militao?"
+            value={form.titulo} onChange={e => setForm(p => ({ ...p, titulo: e.target.value }))} />
+
+          <label style={{ fontSize: '12px', color: 'var(--muted-color)', fontWeight: '700', textTransform: 'uppercase' }}>Descripción *</label>
+          <textarea style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }}
+            placeholder="Describe la jugada polémica..."
+            value={form.descripcion} onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div>
+              <label style={{ fontSize: '12px', color: 'var(--muted-color)', fontWeight: '700', textTransform: 'uppercase' }}>Minuto</label>
+              <input style={inputStyle} placeholder="Ej: 78"
+                value={form.minuto} onChange={e => setForm(p => ({ ...p, minuto: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', color: 'var(--muted-color)', fontWeight: '700', textTransform: 'uppercase' }}>Jornada</label>
+              <input style={inputStyle} placeholder="Ej: 34"
+                value={form.jornada} onChange={e => setForm(p => ({ ...p, jornada: e.target.value }))} />
+            </div>
+          </div>
+
+          <label style={{ fontSize: '12px', color: 'var(--muted-color)', fontWeight: '700', textTransform: 'uppercase' }}>URL Vídeo (opcional)</label>
+          <input style={inputStyle} placeholder="https://youtube.com/watch?v=..."
+            value={form.video_url} onChange={e => setForm(p => ({ ...p, video_url: e.target.value }))} />
+
+          <button onClick={publicarManual} disabled={enviando} style={{
+            width: '100%', padding: '12px', borderRadius: '10px', cursor: enviando ? 'not-allowed' : 'pointer',
+            background: '#1a3d1a', color: '#7cd13b', border: '1px solid #7cd13b',
+            fontSize: '14px', fontWeight: '800', marginTop: '0.5rem'
+          }}>
+            {enviando ? 'Publicando...' : '🚀 Publicar Polémica'}
+          </button>
+        </div>
       )}
     </div>
   )

@@ -2,21 +2,145 @@ name: Sincronizar Polémicas
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Cada hora
-  workflow_dispatch:  # También se puede lanzar manualmente
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
 jobs:
   sincronizar:
     runs-on: ubuntu-latest
     steps:
-      - name: Sincronizar polémicas de LaLiga
+      - name: Sincronizar polémicas de LaLiga y RSS
         run: |
           node -e "
           const SUPABASE_URL = 'https://hdkcyzbywdfoqwpmypoc.supabase.co';
           const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhka2N5emJ5d2Rmb3F3cG15cG9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzMxMDMsImV4cCI6MjA5NTAwOTEwM30.M3LlU4OzH8J8S7-N7CIVi0ovts5hQ1CrkFhfcXIlmr4';
           const FOOTBALL_KEY = '024d98339ac040aa81e415079c09300f';
 
-          async function main() {
+          const PALABRAS_CLAVE = ['polémica','polemica','VAR','penalti','expulsión','expulsion','escándalo','escandalo','arbitro','árbitro','injusto','robo','trampa','tarjeta roja','gol anulado','offside','fuera de juego','protesta','pitada','abucheo','controvertido','dudoso','injusticia','mano','handball'];
+
+          const RSS_FEEDS = [
+            { medio: 'Marca', url: 'https://www.marca.com/rss/futbol.xml' },
+            { medio: 'AS', url: 'https://feeds.as.com/mrss-s/pages/as/site/as.com/portada/' },
+            { medio: 'Sport', url: 'https://www.sport.es/es/rss/futbol.xml' },
+            { medio: 'Mundo Deportivo', url: 'https://www.mundodeportivo.com/rss/futbol.xml' },
+            { medio: 'El Confidencial', url: 'https://www.elconfidencial.com/rss/deportes/futbol/' },
+            { medio: 'El País Deportes', url: 'https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/deportes/portada' },
+            { medio: 'El Mundo Deportivo', url: 'https://www.elmundo.es/rss/deportes.xml' },
+            { medio: 'La Vanguardia', url: 'https://www.lavanguardia.com/rss/deportes.xml' },
+            { medio: 'ABC Deportes', url: 'https://www.abc.es/rss/feeds/abc_deportes.xml' },
+            { medio: 'Cope Deportes', url: 'https://www.cope.es/rss/deportes.xml' },
+            { medio: 'Cadena SER Deportes', url: 'https://cadenaser.com/rss/deportes/' },
+            { medio: 'Onda Cero Deportes', url: 'https://www.ondacero.es/rss/deportes.xml' },
+            { medio: 'Relevo', url: 'https://www.relevo.com/rss/futbol.xml' },
+            { medio: 'Fichajes', url: 'https://www.fichajes.com/rss' },
+            { medio: 'BeSoccer', url: 'https://es.besoccer.com/rss/noticias' },
+            { medio: 'Estadio Deportivo', url: 'https://www.estadiodeportivo.com/rss/futbol.xml' },
+            { medio: 'Superdeporte', url: 'https://www.superdeporte.es/rss/futbol.xml' },
+            { medio: 'Diario Vasco Deportes', url: 'https://www.diariovasco.com/rss/deportes.xml' },
+            { medio: 'El Correo Deportes', url: 'https://www.elcorreo.com/rss/deportes.xml' },
+            { medio: 'La Razón Deportes', url: 'https://www.larazon.es/rss/deportes.xml' },
+            { medio: 'Heraldo Deportes', url: 'https://www.heraldo.es/rss/deportes.xml' },
+            { medio: 'El Periódico Deportes', url: 'https://www.elperiodico.com/es/rss/rss_deportes.xml' },
+            { medio: ' 20minutos Deportes', url: 'https://www.20minutos.es/rss/deportes/' },
+            { medio: 'Publico Deportes', url: 'https://www.publico.es/rss/deportes.xml' },
+            { medio: 'Diario Gol', url: 'https://diariogol.com/feed/' },
+            { medio: 'Footballespana', url: 'https://www.footballespana.net/feed' },
+            { medio: 'Vavel', url: 'https://www.vavel.com/es/rss' },
+            { medio: 'Culemania', url: 'https://culemania.com/feed/' },
+            { medio: 'Madridista Real', url: 'https://madridareal.com/feed/' },
+            { medio: 'Atletico de Madrid Web', url: 'https://www.atleticodemadridweb.com/feed/' }
+          ];
+
+          async function supabaseFetch(path, options = {}) {
+            const res = await fetch(SUPABASE_URL + path, {
+              ...options,
+              headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': 'Bearer ' + SUPABASE_KEY,
+                'Content-Type': 'application/json',
+                ...(options.headers || {})
+              }
+            });
+            return res.json();
+          }
+
+          async function leerRSS(url) {
+            try {
+              const res = await fetch(url, {
+                headers: { 'User-Agent': 'Mozilla/5.0' },
+                signal: AbortSignal.timeout(8000)
+              });
+              const text = await res.text();
+              const items = [];
+              const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+              let match;
+              while ((match = itemRegex.exec(text)) !== null) {
+                const content = match[1];
+                const titulo = (content.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || content.match(/<title>(.*?)<\/title>/))?.[1] || '';
+                const link = (content.match(/<link>(.*?)<\/link>/) || [])[1] || '';
+                const fecha = (content.match(/<pubDate>(.*?)<\/pubDate>/) || [])[1] || '';
+                if (titulo) items.push({ titulo: titulo.trim(), link, fecha });
+              }
+              return items;
+            } catch (e) {
+              console.log('Error RSS ' + url + ': ' + e.message);
+              return [];
+            }
+          }
+
+          function esReciente(fechaStr) {
+            if (!fechaStr) return true;
+            try {
+              const diff = new Date() - new Date(fechaStr);
+              return diff < 2 * 60 * 60 * 1000;
+            } catch { return true; }
+          }
+
+          function detectarEquipos(titulo) {
+            const equipos = ['Real Madrid','Barcelona','Atlético','Athletic','Sociedad','Betis','Villarreal','Valencia','Girona','Rayo','Osasuna','Getafe','Celta','Sevilla','Alavés','Mallorca','Espanyol','Leganés','Las Palmas','Valladolid'];
+            const encontrados = equipos.filter(e => titulo.toLowerCase().includes(e.toLowerCase()));
+            if (encontrados.length >= 2) return encontrados[0] + ' vs ' + encontrados[1];
+            if (encontrados.length === 1) return encontrados[0] + ' vs Rival';
+            return 'LaLiga';
+          }
+
+          async function procesarRSS() {
+            let creadas = 0;
+            for (const feed of RSS_FEEDS) {
+              const items = await leerRSS(feed.url);
+              console.log(feed.medio + ': ' + items.length + ' titulares');
+
+              for (const item of items) {
+                if (!esReciente(item.fecha)) continue;
+                const tituloLower = item.titulo.toLowerCase();
+                const esPolemico = PALABRAS_CLAVE.some(p => tituloLower.includes(p.toLowerCase()));
+                if (!esPolemico) continue;
+
+                const existe = await supabaseFetch('/rest/v1/polemicas_candidatas?titulo=eq.' + encodeURIComponent(item.titulo));
+                if (existe.length > 0) continue;
+
+                const existePublicada = await supabaseFetch('/rest/v1/polemicas?titulo=eq.' + encodeURIComponent(item.titulo));
+                if (existePublicada.length > 0) continue;
+
+                await supabaseFetch('/rest/v1/polemicas_candidatas', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    partido: detectarEquipos(item.titulo),
+                    titulo: item.titulo,
+                    descripcion: 'Detectado en ' + feed.medio + '. Lee más: ' + item.link,
+                    minuto: '90',
+                    jornada: 1,
+                    fuente: feed.medio
+                  })
+                });
+                console.log('Candidata RSS: ' + item.titulo);
+                creadas++;
+              }
+            }
+            return creadas;
+          }
+
+          async function procesarFootball() {
             const hoy = new Date();
             const hace7dias = new Date(hoy - 7 * 24 * 60 * 60 * 1000);
             const dateFrom = hace7dias.toISOString().split('T')[0];
@@ -27,6 +151,7 @@ jobs:
             });
             const data = await res.json();
             const partidos = data.matches || [];
+            console.log('Partidos API: ' + partidos.length);
 
             for (const partido of partidos) {
               const local = partido.homeTeam.shortName || partido.homeTeam.name;
@@ -37,45 +162,47 @@ jobs:
               const golesLocal = marcador?.home ?? 0;
               const golesVisitante = marcador?.away ?? 0;
 
-              const candidatas = [];
+              const checkC = await supabaseFetch('/rest/v1/polemicas_candidatas?partido=eq.' + encodeURIComponent(nombrePartido));
+              const checkP = await supabaseFetch('/rest/v1/polemicas?partido=eq.' + encodeURIComponent(nombrePartido));
+              if (checkC.length > 0 || checkP.length > 0) continue;
 
               const rojas = partido.bookings?.filter(b => b.card === 'RED_CARD') || [];
-              rojas.forEach(roja => {
-                candidatas.push({
-                  partido: nombrePartido,
-                  titulo: 'Roja directa a ' + (roja.player?.name || 'jugador') + ' — ¿merecida?',
-                  descripcion: 'Expulsión directa en el minuto ' + roja.minute + ' que condicionó el partido.',
-                  minuto: String(roja.minute),
-                  jornada
-                });
-              });
-
-              if (Math.abs(golesLocal - golesVisitante) === 1) {
-                candidatas.push({
-                  partido: nombrePartido,
-                  titulo: 'Resultado ajustado en ' + nombrePartido + ' — ¿hubo mano en el área?',
-                  descripcion: 'Partido decidido por la mínima (' + golesLocal + '-' + golesVisitante + '). Los aficionados debaten si hubo una mano no pitada.',
-                  minuto: '75',
-                  jornada
+              for (const roja of rojas) {
+                await supabaseFetch('/rest/v1/polemicas_candidatas', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    partido: nombrePartido,
+                    titulo: 'Roja directa a ' + (roja.player?.name || 'jugador') + ' — ¿merecida?',
+                    descripcion: 'Expulsión directa en el minuto ' + roja.minute + ' que condicionó el partido.',
+                    minuto: String(roja.minute),
+                    jornada,
+                    fuente: 'api'
+                  })
                 });
               }
 
-              for (const c of candidatas) {
-                const check = await fetch(SUPABASE_URL + '/rest/v1/polemicas_candidatas?partido=eq.' + encodeURIComponent(c.partido) + '&titulo=eq.' + encodeURIComponent(c.titulo), {
-                  headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+              if (rojas.length === 0 && Math.abs(golesLocal - golesVisitante) === 1) {
+                await supabaseFetch('/rest/v1/polemicas_candidatas', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    partido: nombrePartido,
+                    titulo: '¿Hubo penalti no pitado en ' + nombrePartido + '?',
+                    descripcion: 'Partido decidido por la mínima (' + golesLocal + '-' + golesVisitante + ').',
+                    minuto: String(60 + Math.floor(Math.random() * 30)),
+                    jornada,
+                    fuente: 'api'
+                  })
                 });
-                const existe = await check.json();
-                if (existe.length === 0) {
-                  await fetch(SUPABASE_URL + '/rest/v1/polemicas_candidatas', {
-                    method: 'POST',
-                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(c)
-                  });
-                  console.log('Candidata creada:', c.titulo);
-                }
               }
             }
-            console.log('Sincronización completada');
+          }
+
+          async function main() {
+            console.log('=== Iniciando sincronización ===');
+            const rssCreadas = await procesarRSS();
+            console.log('RSS total: ' + rssCreadas + ' candidatas');
+            await procesarFootball();
+            console.log('=== Completado ===');
           }
 
           main().catch(console.error);
