@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { db } from '../supabase'
+import { supabase } from '../supabase' // ¡Corregido! Ahora se conecta con tu supabase.js
 
 // Ajustes calculados a partir de los votos (en el futuro esto vendrá 100% de BD)
 // Por ahora los definimos aquí y luego los cruzamos con los equipos reales de Supabase
@@ -51,7 +51,8 @@ export default function Tabla() {
 
   useEffect(() => {
     async function load() {
-      const { data, error } = await db
+      // Corregido: Llamamos a 'supabase' en lugar de 'db'
+      const { data, error } = await supabase
         .from('equipos')
         .select('*')
         .order('pts_oficiales', { ascending: false })

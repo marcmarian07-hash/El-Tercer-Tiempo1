@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../supabase' // ¡Corregido! Ahora se llama igual que en tu archivo de configuración
+import { supabase } from '../supabase'
+import { sincronizarPolemicas } from '../footballApi'
 
 // ── FINGERPRINT ANTIFRAUDE ──
 function getFingerprint() {
@@ -68,12 +69,8 @@ function HeroCard({ p, conteo, onVote }) {
         <p style={styles.heroDesc}>{p.descripcion}</p>
         {!yaVoto ? (
           <div style={styles.voteRow}>
-            <button style={styles.voteRobo} onClick={() => votar('robo')}>
-              🚨 Era un robo
-            </button>
-            <button style={styles.voteAcierto} onClick={() => votar('acierto')}>
-              ✓ Decisión correcta
-            </button>
+            <button style={styles.voteRobo} onClick={() => votar('robo')}>🚨 Era un robo</button>
+            <button style={styles.voteAcierto} onClick={() => votar('acierto')}>✓ Decisión correcta</button>
           </div>
         ) : (
           <VoteBar robo={c.robo} acierto={c.acierto} />
@@ -108,16 +105,8 @@ function MiniCard({ p, conteo, onVote, index }) {
         <p style={styles.miniTitle}>{p.titulo}</p>
         {!yaVoto ? (
           <div style={{ display: 'flex', gap: '6px' }}>
-            <button
-              onClick={() => onVote(p.id, 'robo')}
-              style={{ ...styles.miniBtnRobo, flex: 1 }}>
-              🚨 Robo
-            </button>
-            <button
-              onClick={() => onVote(p.id, 'acierto')}
-              style={{ ...styles.miniBtnAcierto, flex: 1 }}>
-              ✓ OK
-            </button>
+            <button onClick={() => onVote(p.id, 'robo')} style={{ ...styles.miniBtnRobo, flex: 1 }}>🚨 Robo</button>
+            <button onClick={() => onVote(p.id, 'acierto')} style={{ ...styles.miniBtnAcierto, flex: 1 }}>✓ OK</button>
           </div>
         ) : (
           <>
@@ -145,37 +134,38 @@ export default function Polemica() {
   const [polemicas, setPolemicas] = useState([])
   const [conteo, setConteo] = useState({})
   const [loading, setLoading] = useState(true)
+  const [sincronizando, setSincronizando] = useState(false)
+  const [msgSync, setMsgSync] = useState('')
 
-  // Cargar polémicas + votos (Corregido con 'supabase')
   useEffect(() => {
-    async function load() {
-      const { data: pols } = await supabase
-        .from('polemicas')
-        .select('*')
-        .eq('activa', true)
-        .order('id')
-
-      if (!pols?.length) { setLoading(false); return }
-      setPolemicas(pols)
-
-      const ids = pols.map(p => p.id)
-      const { data: votos } = await supabase
-        .from('votos')
-        .select('polemica_id, tipo')
-        .in('polemica_id', ids)
-
-      const c = {}
-      ;(votos || []).forEach(v => {
-        if (!c[v.polemica_id]) c[v.polemica_id] = { robo: 0, acierto: 0 }
-        c[v.polemica_id][v.tipo]++
-      })
-      setConteo(c)
-      setLoading(false)
-    }
     load()
   }, [])
 
-  // Suscripción tiempo real (Corregido con 'supabase')
+  async function load() {
+    const { data: pols } = await supabase
+      .from('polemicas')
+      .select('*')
+      .eq('activa', true)
+      .order('id')
+
+    if (!pols?.length) { setLoading(false); return }
+    setPolemicas(pols)
+
+    const ids = pols.map(p => p.id)
+    const { data: votos } = await supabase
+      .from('votos')
+      .select('polemica_id, tipo')
+      .in('polemica_id', ids)
+
+    const c = {}
+    ;(votos || []).forEach(v => {
+      if (!c[v.polemica_id]) c[v.polemica_id] = { robo: 0, acierto: 0 }
+      c[v.polemica_id][v.tipo]++
+    })
+    setConteo(c)
+    setLoading(false)
+  }
+
   useEffect(() => {
     const channel = supabase.channel('votos-rt')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votos' }, payload => {
@@ -192,7 +182,6 @@ export default function Polemica() {
     return () => supabase.removeChannel(channel)
   }, [])
 
-  // Votar (Corregido con 'supabase')
   const handleVote = async (polId, tipo) => {
     const votados = getVotados()
     if (votados[polId]) return
@@ -211,6 +200,15 @@ export default function Polemica() {
     }))
   }
 
+  const handleSincronizar = async () => {
+    setSincronizando(true)
+    setMsgSync('')
+    const res = await sincronizarPolemicas()
+    setMsgSync(res.mensaje)
+    setSincronizando(false)
+    if (res.creadas > 0) load()
+  }
+
   const destacada = polemicas.find(p => p.destacada) || polemicas[0]
   const resto = polemicas.filter(p => p.id !== destacada?.id)
 
@@ -218,14 +216,6 @@ export default function Polemica() {
     <section style={styles.section}>
       <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted-color)', fontSize: '13px' }}>
         Cargando polémicas...
-      </div>
-    </section>
-  )
-
-  if (!polemicas.length) return (
-    <section style={styles.section}>
-      <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted-color)', fontSize: '13px' }}>
-        No hay polémicas activas esta jornada.
       </div>
     </section>
   )
@@ -247,14 +237,40 @@ export default function Polemica() {
       <div style={styles.label}>
         🔥 Polémicas de la Jornada <span style={styles.labelLine} />
       </div>
-      {destacada && (
-        <HeroCard p={destacada} conteo={conteo} onVote={handleVote} />
+
+      {!polemicas.length ? (
+        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted-color)', fontSize: '13px' }}>
+          No hay polémicas activas esta jornada.
+        </div>
+      ) : (
+        <>
+          {destacada && <HeroCard p={destacada} conteo={conteo} onVote={handleVote} />}
+          {resto.length > 0 && (
+            <div style={styles.grid}>
+              {resto.map((p, index) => (
+                <MiniCard key={p.id} p={p} conteo={conteo} onVote={handleVote} index={index} />
+              ))}
+            </div>
+          )}
+        </>
       )}
-      {resto.length > 0 && (
-        <div style={styles.grid}>
-          {resto.map((p, index) => (
-            <MiniCard key={p.id} p={p} conteo={conteo} onVote={handleVote} index={index} />
-          ))}
+
+      {/* BOTÓN SINCRONIZAR — solo visible en desarrollo */}
+      {import.meta.env.DEV && (
+        <div style={{ marginTop: '2rem', padding: '1rem', border: '1px dashed var(--border-color)', borderRadius: '10px', textAlign: 'center' }}>
+          <p style={{ fontSize: '11px', color: 'var(--muted-color)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+            Panel de admin — solo visible en local
+          </p>
+          <button
+            onClick={handleSincronizar}
+            disabled={sincronizando}
+            style={{ padding: '8px 20px', background: '#333', color: '#aaa', border: '1px solid #444', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontFamily: 'inherit' }}
+          >
+            {sincronizando ? '🔄 Sincronizando...' : '🔄 Sincronizar polémicas de LaLiga'}
+          </button>
+          {msgSync && (
+            <p style={{ fontSize: '12px', color: '#7cd13b', marginTop: '8px' }}>{msgSync}</p>
+          )}
         </div>
       )}
     </section>

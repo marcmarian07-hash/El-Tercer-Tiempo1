@@ -1,6 +1,7 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js' // ¡Corregido el nombre de la librería!
 
-const supabaseUrl = 'https://tu-url-de-supabase.supabase.co' // Aquí pon tu URL real
-const supabaseAnonKey = 'tu-clave-anon-de-supabase'         // Aquí pon tu clave real
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export default supabase

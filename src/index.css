@@ -1,35 +1,80 @@
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* MODO OSCURO: Gris Grafito (no negro absoluto) */
-  --bg-color: #1a1a1a;        /* Un tono gris oscuro, evita el negro profundo */
-  --text-color: #d1d1d1;      /* Gris claro, reduce el brillo de las letras blancas */
-  --card-bg: #262626;        /* Fondo de tarjeta ligeramente más claro que el fondo */
-  --border-color: #3d3d3d;    /* Borde sutil, no agresivo */
-  --muted-color: #999999;
-  --card-shadow: 0 8px 32px rgba(0,0,0,0.5);
-  --accent-soft: rgba(226, 75, 74, 0.2);
+  --bg-color: #1a1a1a; --text-color: #d1d1d1; --card-bg: #262626;
+  --border-color: #3d3d3d; --muted-color: #999999; --card-shadow: 0 8px 32px rgba(0,0,0,0.5);
 }
 .light-mode {
-  /* Fondo con textura sutil */
-  --bg-color: #e8e8e8;
-  --text-color: #2b2b2b;
-  --card-bg: #ffffff;
-  --border-color: #d1d1d1;
-  --muted-color: #777777;
-  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Sombra suave para dar altura */
-  --accent-soft: rgba(226, 75, 74, 0.1);       /* Versión suave de tu rojo */
+  --bg-color: #e8e8e8; --text-color: #2b2b2b; --card-bg: #ffffff;
+  --border-color: #d1d1d1; --muted-color: #777777; --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-body {
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  transition: background-color 0.3s, color 0.3s;
-  margin: 0;
-  font-family: sans-serif;
+body { background-color: var(--bg-color); color: var(--text-color); font-family: sans-serif; transition: 0.3s; }
+
+/* Navbar */
+.navbar-container {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 30px; margin: 20px auto; max-width: 1100px;
+  background-color: var(--card-bg); border: 1px solid var(--border-color);
+  border-radius: 50px; box-shadow: var(--card-shadow);
+}
+.logo-box { font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.nav-menu { display: flex; gap: 24px; }
+.nav-item { color: var(--muted-color); cursor: pointer; font-size: 14px; }
+.nav-item.active { color: #E24B4A; font-weight: 600; }
+.auth-box { background: var(--bg-color); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+
+/* Main Content */
+.main-content { min-height: 80vh; padding: 20px; max-width: 1100px; margin: 0 auto; }
+
+/* Footer Profesional (Estructura Estándar) */
+.footer {
+  background-color: var(--card-bg);
+  border-top: 1px solid var(--border-color);
+  padding: 60px 20px 20px 20px;
+  margin-top: 60px;
 }
 
+.footer-content {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+
+.footer-info { max-width: 300px; }
+.footer-info h3 { margin-bottom: 15px; color: var(--text-color); font-size: 1.1rem; }
+.footer-info p { color: var(--muted-color); font-size: 0.9rem; line-height: 1.6; }
+
+.footer-links { display: flex; gap: 50px; }
+.footer-links h4 { margin-bottom: 15px; color: var(--text-color); font-size: 1rem; }
+.footer-links div { display: flex; flex-direction: column; gap: 10px; }
+.footer-links span { 
+  color: var(--muted-color); 
+  font-size: 0.85rem; 
+  cursor: pointer; 
+  transition: 0.2s; 
+}
+.footer-links span:hover { color: #E24B4A; }
+
+.footer-bottom {
+  max-width: 1100px;
+  margin: 40px auto 0 auto;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+  color: var(--muted-color);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .footer-content { flex-direction: column; }
+  .footer-links { gap: 30px; }
+}
+
+/* Modales */
+.modal-overlay { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index: 1000; }
+.modal-content { background: var(--card-bg); padding: 2rem; border-radius: 12px; border: 1px solid var(--border-color); width: 350px; position: relative; }
+.close-btn { position: absolute; top: 10px; right: 10px; background: none; border: none; cursor: pointer; }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { db } from '../supabase'
+import { supabase } from '../supabase' // ¡Corregido! Vinculado a tu archivo supabase.js
 
 // Noticias de fallback por si la tabla aún no tiene datos
 const FALLBACK = [
@@ -54,7 +54,8 @@ export default function Noticias() {
 
   useEffect(() => {
     async function load() {
-      const { data, error } = await db
+      // Corregido: Usamos 'supabase' en lugar de 'db'
+      const { data, error } = await supabase
         .from('noticias')
         .select('*')
         .order('created_at', { ascending: false })
