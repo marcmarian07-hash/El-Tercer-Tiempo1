@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabase'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
@@ -9,17 +9,8 @@ import Foro from './components/Foro'
 import Perfil from './components/Perfil'
 import AdminPanel from './components/AdminPanel'
 
-// Cambia este email por el tuyo
-const ADMIN_EMAIL = 'marcmarian07@gmail.com'
-
-const EQUIPOS_DISPONIBLES = [
-  'Real Madrid', 'FC Barcelona', 'Atlético de Madrid', 'Athletic Club',
-  'Real Sociedad', 'Real Betis', 'Villarreal CF', 'Valencia CF',
-  'Girona FC', 'Rayo Vallecano', 'Osasuna', 'Getafe CF',
-  'Celta de Vigo', 'Sevilla FC', 'Alavés', 'RCD Mallorca',
-  'Elche', 'Espanyol', 'Levante', 'Oviedo', 'Neutral / Sin equipo'
-]
-
+const ADMIN_EMAIL = 'marcalonsopol0708@gmail.com'
+const EQUIPOS_DISPONIBLES = ['Real Madrid', 'FC Barcelona', 'Atlético de Madrid', 'Athletic Club', 'Real Sociedad', 'Real Betis', 'Villarreal CF', 'Valencia CF', 'Girona FC', 'Rayo Vallecano', 'Osasuna', 'Getafe CF', 'Celta de Vigo', 'Sevilla FC', 'Alavés', 'RCD Mallorca', 'Elche', 'Espanyol', 'Levante', 'Oviedo', 'Neutral / Sin equipo']
 const AVATARES_DISPONIBLES = ['🤡', '🦊', '🦁', '🐸', '🐵', '🦉', '🥷', '🧙‍♂️', '🧔', '🧑', '👦', '🧓']
 
 function App() {
@@ -28,36 +19,28 @@ function App() {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [esModoClaro, setEsModoClaro] = useState(false)
 
-  useEffect(() => {
-    document.body.className = esModoClaro ? 'light-mode' : '';
-  }, [esModoClaro]);
+  useEffect(() => { document.body.className = esModoClaro ? 'light-mode' : ''; }, [esModoClaro]);
 
-  const toggleTema = () => setEsModoClaro(!esModoClaro);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) obtenerPerfil(session.user)
-    })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) obtenerPerfil(session.user)
-      else setUsuario(null)
-    })
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const obtenerPerfil = async (authUser) => {
+  const obtenerPerfil = useCallback(async (authUser) => {
     try {
       const { data } = await supabase.from('perfiles').select('nick, avatar, equipo').eq('user_id', authUser.id).maybeSingle()
       setUsuario({
-        id: authUser.id,
-        email: authUser.email,
+        id: authUser.id, email: authUser.email,
         nick: data?.nick || authUser.email.split('@')[0],
         avatar: data?.avatar || '🦊',
         equipo: data?.equipo || 'Neutral',
-        esAdmin: authUser.email === ADMIN_EMAIL // Aquí detectamos si eres tú
+        esAdmin: authUser.email === ADMIN_EMAIL
       })
-    } catch (err) { console.error('Error al obtener perfil:', err.message) }
-  }
+    } catch (err) { console.error('Error:', err.message) }
+  }, [])
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => { if (session) obtenerPerfil(session.user) })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) obtenerPerfil(session.user); else setUsuario(null)
+    })
+    return () => subscription.unsubscribe()
+  }, [obtenerPerfil])
 
   const renderVista = () => {
     switch (vista) {
@@ -73,7 +56,7 @@ function App() {
 
   return (
     <div className="app-container">
-      <Navbar vistaActual={vista} onNavegar={setVista} usuario={usuario} abrirAuth={() => setModalAbierto(true)} toggleTema={toggleTema} />
+      <Navbar vistaActual={vista} onNavegar={setVista} usuario={usuario} abrirAuth={() => setModalAbierto(true)} toggleTema={() => setEsModoClaro(!esModoClaro)} />
       
       <main className="main-content">{renderVista()}</main>
 
@@ -97,89 +80,50 @@ function App() {
             </div>
           </div>
         </div>
-        <div className="footer-bottom">
-          © 2026 El Tercer Tiempo. Todos los derechos reservados.
-        </div>
+        <div className="footer-bottom">© 2026 El Tercer Tiempo. Todos los derechos reservados.</div>
       </footer>
 
-      {modalAbierto && <AuthModal onCerrar={() => setModalAbierto(false)} onLoginExitoso={() => setModalAbierto(false)} />}
+      {modalAbierto && (
+        <AuthModal onCerrar={() => setModalAbierto(false)} onLoginExitoso={() => setModalAbierto(false)} setUsuario={setUsuario} obtenerPerfil={obtenerPerfil} />
+      )}
     </div>
   )
 }
-// ... resto del componente AuthModal (sin cambios)
 
 function AuthModal({ onCerrar, onLoginExitoso, setUsuario, obtenerPerfil }) {
   const [esRegistro, setEsRegistro] = useState(false)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [nick, setNick] = useState('')
-  const [avatarSel, setAvatarSel] = useState(AVATARES_DISPONIBLES[0])
-  const [equipoSel, setEquipoSel] = useState(EQUIPOS_DISPONIBLES[0])
-  const [cargando, setCargando] = useState(false)
-  const [error, setError] = useState('')
+  const [email, setEmail] = useState(''), [password, setPassword] = useState(''), [nick, setNick] = useState('')
+  const [avatarSel, setAvatarSel] = useState(AVATARES_DISPONIBLES[0]), [equipoSel, setEquipoSel] = useState(EQUIPOS_DISPONIBLES[0])
+  const [cargando, setCargando] = useState(false), [error, setError] = useState('')
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setCargando(true)
+    e.preventDefault(); setCargando(true); setError('')
     try {
       if (esRegistro) {
-        const { data, error: authError } = await supabase.auth.signUp({ email, password })
-        if (authError) throw authError
+        const { data } = await supabase.auth.signUp({ email, password })
         if (data.user) {
-          await supabase.from('perfiles').insert([{
-            user_id: data.user.id, nick, avatar: avatarSel, equipo: equipoSel
-          }])
-          setUsuario({
-            id: data.user.id, email: data.user.email,
-            nick, avatar: avatarSel, equipo: equipoSel,
-            esAdmin: data.user.email === ADMIN_EMAIL
-          })
+          await supabase.from('perfiles').insert([{ user_id: data.user.id, nick, avatar: avatarSel, equipo: equipoSel }])
+          await obtenerPerfil(data.user)
         }
       } else {
-        const { data, error: loginError } = await supabase.auth.signInWithPassword({ email, password })
-        if (loginError) throw loginError
+        const { data } = await supabase.auth.signInWithPassword({ email, password })
         if (data?.user) await obtenerPerfil(data.user)
       }
       onLoginExitoso()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setCargando(false)
-    }
+    } catch (err) { setError(err.message) } finally { setCargando(false) }
   }
 
   return (
     <div className="modal-overlay" onClick={onCerrar}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <button className="close-btn" onClick={onCerrar}>✕</button>
-        <h2 style={{ marginBottom: '1rem' }}>{esRegistro ? 'Crear Cuenta' : 'Iniciar Sesión'}</h2>
+        <h2>{esRegistro ? 'Crear Cuenta' : 'Iniciar Sesión'}</h2>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <input type="email" placeholder="Email" required value={email} onChange={e => setEmail(e.target.value)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '14px' }} />
-          <input type="password" placeholder="Contraseña" required value={password} onChange={e => setPassword(e.target.value)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '14px' }} />
-          {esRegistro && (
-            <>
-              <input type="text" placeholder="Nick" required value={nick} onChange={e => setNick(e.target.value)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '14px' }} />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: '6px' }}>
-                {AVATARES_DISPONIBLES.map(av => (
-                  <div key={av} onClick={() => setAvatarSel(av)} style={{ fontSize: '22px', padding: '6px', border: `1px solid ${avatarSel === av ? '#E24B4A' : 'var(--border-color)'}`, borderRadius: '8px', textAlign: 'center', cursor: 'pointer', background: avatarSel === av ? 'rgba(226,75,74,0.1)' : 'var(--bg-color)' }}>
-                    {av}
-                  </div>
-                ))}
-              </div>
-              <select value={equipoSel} onChange={e => setEquipoSel(e.target.value)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '14px' }}>
-                {EQUIPOS_DISPONIBLES.map(eq => <option key={eq} value={eq}>{eq}</option>)}
-              </select>
-            </>
-          )}
-          {error && <p style={{ color: '#E24B4A', fontSize: '12px' }}>⚠️ {error}</p>}
-          <button type="submit" style={{ background: '#E24B4A', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}>
-            {cargando ? 'Procesando...' : esRegistro ? 'Registrarse' : 'Entrar'}
-          </button>
+          <input type="email" placeholder="Email" required onChange={e => setEmail(e.target.value)} />
+          <input type="password" placeholder="Contraseña" required onChange={e => setPassword(e.target.value)} />
+          {error && <p style={{ color: 'red', fontSize: '12px' }}>{error}</p>}
+          <button type="submit">{cargando ? '...' : 'Entrar'}</button>
         </form>
-        <p onClick={() => { setEsRegistro(!esRegistro); setError('') }} style={{ marginTop: '1rem', fontSize: '12px', color: 'var(--muted-color)', cursor: 'pointer', textAlign: 'center' }}>
-          {esRegistro ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
-        </p>
       </div>
     </div>
   )
