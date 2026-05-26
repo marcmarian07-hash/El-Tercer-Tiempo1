@@ -18,6 +18,17 @@ jobs:
 
           const PALABRAS_CLAVE = ['polémica','polemica','VAR','penalti','expulsión','expulsion','escándalo','escandalo','arbitro','árbitro','injusto','robo','trampa','tarjeta roja','gol anulado','offside','fuera de juego','protesta','pitada','abucheo','controvertido','dudoso','injusticia','mano','handball'];
 
+          const PALABRAS_FUTBOL = ['fútbol','futbol','laliga','liga','champions','copa del rey','primera división','primera division','gol','portero','delantero','defensa','centrocampista','balón','balon'];
+
+          const EQUIPOS_FUTBOL = ['real madrid','barcelona','atlético','athletic','sociedad','betis','villarreal','valencia','girona','rayo','osasuna','getafe','celta','sevilla','alavés','mallorca','espanyol','leganés','las palmas','valladolid'];
+
+          function esFutbol(titulo) {
+            const t = titulo.toLowerCase();
+            const tieneEquipo = EQUIPOS_FUTBOL.some(e => t.includes(e));
+            const tieneFutbol = PALABRAS_FUTBOL.some(p => t.includes(p));
+            return tieneEquipo || tieneFutbol;
+          }
+
           const RSS_FEEDS = [
             { medio: 'Marca', url: 'https://www.marca.com/rss/futbol.xml' },
             { medio: 'AS', url: 'https://feeds.as.com/mrss-s/pages/as/site/as.com/portada/' },
@@ -25,7 +36,7 @@ jobs:
             { medio: 'Mundo Deportivo', url: 'https://www.mundodeportivo.com/rss/futbol.xml' },
             { medio: 'El Confidencial', url: 'https://www.elconfidencial.com/rss/deportes/futbol/' },
             { medio: 'El País Deportes', url: 'https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/deportes/portada' },
-            { medio: 'El Mundo Deportivo', url: 'https://www.elmundo.es/rss/deportes.xml' },
+            { medio: 'El Mundo Deportes', url: 'https://www.elmundo.es/rss/deportes.xml' },
             { medio: 'La Vanguardia', url: 'https://www.lavanguardia.com/rss/deportes.xml' },
             { medio: 'ABC Deportes', url: 'https://www.abc.es/rss/feeds/abc_deportes.xml' },
             { medio: 'Cope Deportes', url: 'https://www.cope.es/rss/deportes.xml' },
@@ -41,7 +52,7 @@ jobs:
             { medio: 'La Razón Deportes', url: 'https://www.larazon.es/rss/deportes.xml' },
             { medio: 'Heraldo Deportes', url: 'https://www.heraldo.es/rss/deportes.xml' },
             { medio: 'El Periódico Deportes', url: 'https://www.elperiodico.com/es/rss/rss_deportes.xml' },
-            { medio: ' 20minutos Deportes', url: 'https://www.20minutos.es/rss/deportes/' },
+            { medio: '20minutos Deportes', url: 'https://www.20minutos.es/rss/deportes/' },
             { medio: 'Publico Deportes', url: 'https://www.publico.es/rss/deportes.xml' },
             { medio: 'Diario Gol', url: 'https://diariogol.com/feed/' },
             { medio: 'Footballespana', url: 'https://www.footballespana.net/feed' },
@@ -115,6 +126,7 @@ jobs:
                 const tituloLower = item.titulo.toLowerCase();
                 const esPolemico = PALABRAS_CLAVE.some(p => tituloLower.includes(p.toLowerCase()));
                 if (!esPolemico) continue;
+                if (!esFutbol(item.titulo)) continue;
 
                 const existe = await supabaseFetch('/rest/v1/polemicas_candidatas?titulo=eq.' + encodeURIComponent(item.titulo));
                 if (existe.length > 0) continue;
