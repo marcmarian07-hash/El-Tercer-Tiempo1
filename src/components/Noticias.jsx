@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../supabase' // ¡Corregido! Vinculado a tu archivo supabase.js
+import { supabase } from '../supabase'
 
 // Noticias de fallback por si la tabla aún no tiene datos
 const FALLBACK = [
@@ -23,6 +23,7 @@ function NoticiaItem({ noticia, index }) {
   return (
     <div
       style={{ ...styles.item, animation: `fadeInUp 0.6s cubic-bezier(0.16,1,0.3,1) ${index * 0.1}s forwards` }}
+      onClick={() => noticia.url && window.open(noticia.url, '_blank')}
       onMouseEnter={e => {
         e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)'
         e.currentTarget.style.paddingLeft = '12px'
@@ -54,7 +55,6 @@ export default function Noticias() {
 
   useEffect(() => {
     async function load() {
-      // Corregido: Usamos 'supabase' en lugar de 'db'
       const { data, error } = await supabase
         .from('noticias')
         .select('*')
@@ -62,7 +62,6 @@ export default function Noticias() {
         .limit(10)
 
       if (error || !data?.length) {
-        // Si la tabla no existe o está vacía, usamos el fallback
         setNoticias(FALLBACK)
       } else {
         setNoticias(data.map(n => ({
@@ -71,6 +70,7 @@ export default function Noticias() {
           titulo: n.titulo,
           meta: `${timeAgo(n.created_at)} · ${n.fuente || 'Llorómetro'}`,
           emoji: n.emoji || '📰',
+          url: n.url,
         })))
       }
       setLoading(false)
