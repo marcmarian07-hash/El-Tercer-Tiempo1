@@ -12,7 +12,6 @@ export default function AdminPanel() {
   const [publicadas, setPublicadas] = useState([])
   const [videoUrls, setVideoUrls] = useState({})
   const [tab, setTab] = useState('pendientes')
-
   const [form, setForm] = useState({
     partido: '', titulo: '', descripcion: '', minuto: '', jornada: '', video_url: ''
   })
@@ -33,13 +32,28 @@ export default function AdminPanel() {
     if (data) setPublicadas(data)
   }
 
-  const aceptar = async (item) => {
-    const { error } = await supabase.from('polemicas').insert([{
-      partido: item.partido, titulo: item.titulo, descripcion: item.descripcion,
-      minuto: item.minuto, jornada: item.jornada,
-      video_url: videoUrls[item.id] || null, activa: true
-    }])
-    if (error) { alert("Error al publicar: " + error.message); return }
+  const aceptar = async (item, destino = 'polemicas') => {
+    if (destino === 'polemicas') {
+      const { error } = await supabase.from('polemicas').insert([{
+        partido: item.partido,
+        titulo: item.titulo,
+        descripcion: item.descripcion,
+        minuto: item.minuto,
+        jornada: item.jornada,
+        video_url: videoUrls[item.id] || null,
+        activa: true
+      }])
+      if (error) { alert("Error al publicar: " + error.message); return }
+    } else {
+      const { error } = await supabase.from('temas_foro').insert([{
+        titulo: item.titulo,
+        descripcion: item.descripcion + (item.partido ? ' — ' + item.partido : ''),
+        categoria: 'otros',
+        autor_nick: 'Redacción',
+        autor_avatar: '📰'
+      }])
+      if (error) { alert("Error al publicar en foro: " + error.message); return }
+    }
     await supabase.from('polemicas_candidatas').delete().eq('id', item.id)
     setVideoUrls(prev => { const n = { ...prev }; delete n[item.id]; return n })
     cargarPendientes()
@@ -114,6 +128,7 @@ export default function AdminPanel() {
             }}>
               <p style={{ fontSize: '11px', color: 'var(--muted-color)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: '700' }}>
                 {item.partido} · Min {item.minuto} · J{item.jornada}
+                {item.fuente && <span style={{ marginLeft: '8px', color: '#5bc4ff' }}>· {item.fuente}</span>}
               </p>
               <p style={{ fontSize: '16px', fontWeight: '800', marginBottom: '8px', color: 'var(--text-color)' }}>{item.titulo}</p>
               <p style={{ fontSize: '13px', color: 'var(--muted-color)', marginBottom: '1rem', lineHeight: '1.5' }}>{item.descripcion}</p>
@@ -124,14 +139,18 @@ export default function AdminPanel() {
                 onChange={e => setVideoUrls(prev => ({ ...prev, [item.id]: e.target.value }))}
                 style={{ ...inputStyle, marginBottom: '1rem' }}
               />
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button onClick={() => aceptar(item)} style={{
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button onClick={() => aceptar(item, 'polemicas')} style={{
                   background: '#1a3d1a', color: '#7cd13b', border: '1px solid #7cd13b',
-                  padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700'
-                }}>✅ Aceptar y Publicar</button>
+                  padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '700'
+                }}>⚽ Publicar en Polémicas</button>
+                <button onClick={() => aceptar(item, 'foro')} style={{
+                  background: '#1a2a3d', color: '#5bc4ff', border: '1px solid #5bc4ff',
+                  padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '700'
+                }}>💬 Publicar en Foro</button>
                 <button onClick={() => denegar(item)} style={{
                   background: '#3d1a1a', color: '#ff5c5a', border: '1px solid #ff5c5a',
-                  padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700'
+                  padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '700'
                 }}>❌ Denegar</button>
               </div>
             </div>
