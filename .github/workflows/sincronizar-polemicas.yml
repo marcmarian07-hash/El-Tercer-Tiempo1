@@ -18,16 +18,12 @@ jobs:
           const FOOTBALL_KEY = '024d98339ac040aa81e415079c09300f';
 
           const PALABRAS_CLAVE = ['polémica','polemica','VAR','penalti','expulsión','expulsion','escándalo','escandalo','arbitro','árbitro','injusto','robo','trampa','tarjeta roja','gol anulado','offside','fuera de juego','protesta','pitada','abucheo','controvertido','dudoso','injusticia','mano','handball'];
-
           const PALABRAS_FUTBOL = ['fútbol','futbol','laliga','liga','champions','copa del rey','primera división','primera division','gol','portero','delantero','defensa','centrocampista','balón','balon'];
-
           const EQUIPOS_FUTBOL = ['real madrid','barcelona','atlético','athletic','sociedad','betis','villarreal','valencia','girona','rayo','osasuna','getafe','celta','sevilla','alavés','mallorca','espanyol','leganés','las palmas','valladolid'];
 
           function esFutbol(titulo) {
             const t = titulo.toLowerCase();
-            const tieneEquipo = EQUIPOS_FUTBOL.some(e => t.includes(e));
-            const tieneFutbol = PALABRAS_FUTBOL.some(p => t.includes(p));
-            return tieneEquipo || tieneFutbol;
+            return EQUIPOS_FUTBOL.some(e => t.includes(e)) || PALABRAS_FUTBOL.some(p => t.includes(p));
           }
 
           const RSS_FEEDS = [
@@ -78,10 +74,7 @@ jobs:
 
           async function leerRSS(url) {
             try {
-              const res = await fetch(url, {
-                headers: { 'User-Agent': 'Mozilla/5.0' },
-                signal: AbortSignal.timeout(8000)
-              });
+              const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) });
               const text = await res.text();
               const items = [];
               const itemRegex = /<item>([\s\S]*?)<\/item>/g;
@@ -94,18 +87,12 @@ jobs:
                 if (titulo) items.push({ titulo: titulo.trim(), link, fecha });
               }
               return items;
-            } catch (e) {
-              console.log('Error RSS ' + url + ': ' + e.message);
-              return [];
-            }
+            } catch (e) { console.log('Error RSS ' + url + ': ' + e.message); return []; }
           }
 
           function esReciente(fechaStr) {
             if (!fechaStr) return true;
-            try {
-              const diff = new Date() - new Date(fechaStr);
-              return diff < 2 * 60 * 60 * 1000;
-            } catch { return true; }
+            try { return new Date() - new Date(fechaStr) < 2 * 60 * 60 * 1000; } catch { return true; }
           }
 
           function detectarEquipos(titulo) {
@@ -125,24 +112,15 @@ jobs:
                 if (!esReciente(item.fecha)) continue;
                 const tituloLower = item.titulo.toLowerCase();
                 const esPolemico = PALABRAS_CLAVE.some(p => tituloLower.includes(p.toLowerCase()));
-                if (!esPolemico) continue;
-                if (!esFutbol(item.titulo)) continue;
+                if (!esPolemico || !esFutbol(item.titulo)) continue;
                 const existe = await supabaseFetch('/rest/v1/polemicas_candidatas?titulo=eq.' + encodeURIComponent(item.titulo));
                 if (existe.length > 0) continue;
                 const existePublicada = await supabaseFetch('/rest/v1/polemicas?titulo=eq.' + encodeURIComponent(item.titulo));
                 if (existePublicada.length > 0) continue;
                 await supabaseFetch('/rest/v1/polemicas_candidatas', {
                   method: 'POST',
-                  body: JSON.stringify({
-                    partido: detectarEquipos(item.titulo),
-                    titulo: item.titulo,
-                    descripcion: 'Detectado en ' + feed.medio + '. Lee más: ' + item.link,
-                    minuto: '90',
-                    jornada: 1,
-                    fuente: feed.medio
-                  })
+                  body: JSON.stringify({ partido: detectarEquipos(item.titulo), titulo: item.titulo, descripcion: 'Detectado en ' + feed.medio + '. Lee más: ' + item.link, minuto: '90', jornada: 1, fuente: feed.medio })
                 });
-                console.log('Candidata RSS: ' + item.titulo);
                 creadas++;
               }
             }
@@ -152,51 +130,24 @@ jobs:
           async function procesarFootball() {
             const hoy = new Date();
             const hace7dias = new Date(hoy - 7 * 24 * 60 * 60 * 1000);
-            const dateFrom = hace7dias.toISOString().split('T')[0];
-            const dateTo = hoy.toISOString().split('T')[0];
-            const res = await fetch('https://api.football-data.org/v4/competitions/PD/matches?dateFrom=' + dateFrom + '&dateTo=' + dateTo + '&status=FINISHED', {
-              headers: { 'X-Auth-Token': FOOTBALL_KEY }
-            });
+            const res = await fetch('https://api.football-data.org/v4/competitions/PD/matches?dateFrom=' + hace7dias.toISOString().split('T')[0] + '&dateTo=' + hoy.toISOString().split('T')[0] + '&status=FINISHED', { headers: { 'X-Auth-Token': FOOTBALL_KEY } });
             const data = await res.json();
-            const partidos = data.matches || [];
-            console.log('Partidos API: ' + partidos.length);
-            for (const partido of partidos) {
+            for (const partido of (data.matches || [])) {
               const local = partido.homeTeam.shortName || partido.homeTeam.name;
               const visitante = partido.awayTeam.shortName || partido.awayTeam.name;
               const nombrePartido = local + ' vs ' + visitante;
               const jornada = partido.matchday || 1;
-              const marcador = partido.score?.fullTime;
-              const golesLocal = marcador?.home ?? 0;
-              const golesVisitante = marcador?.away ?? 0;
+              const golesLocal = partido.score?.fullTime?.home ?? 0;
+              const golesVisitante = partido.score?.fullTime?.away ?? 0;
               const checkC = await supabaseFetch('/rest/v1/polemicas_candidatas?partido=eq.' + encodeURIComponent(nombrePartido));
               const checkP = await supabaseFetch('/rest/v1/polemicas?partido=eq.' + encodeURIComponent(nombrePartido));
               if (checkC.length > 0 || checkP.length > 0) continue;
               const rojas = partido.bookings?.filter(b => b.card === 'RED_CARD') || [];
               for (const roja of rojas) {
-                await supabaseFetch('/rest/v1/polemicas_candidatas', {
-                  method: 'POST',
-                  body: JSON.stringify({
-                    partido: nombrePartido,
-                    titulo: 'Roja directa a ' + (roja.player?.name || 'jugador') + ' — ¿merecida?',
-                    descripcion: 'Expulsión directa en el minuto ' + roja.minute + ' que condicionó el partido.',
-                    minuto: String(roja.minute),
-                    jornada,
-                    fuente: 'api'
-                  })
-                });
+                await supabaseFetch('/rest/v1/polemicas_candidatas', { method: 'POST', body: JSON.stringify({ partido: nombrePartido, titulo: 'Roja directa a ' + (roja.player?.name || 'jugador') + ' — ¿merecida?', descripcion: 'Expulsión directa en el minuto ' + roja.minute, minuto: String(roja.minute), jornada, fuente: 'api' }) });
               }
               if (rojas.length === 0 && Math.abs(golesLocal - golesVisitante) === 1) {
-                await supabaseFetch('/rest/v1/polemicas_candidatas', {
-                  method: 'POST',
-                  body: JSON.stringify({
-                    partido: nombrePartido,
-                    titulo: '¿Hubo penalti no pitado en ' + nombrePartido + '?',
-                    descripcion: 'Partido decidido por la mínima (' + golesLocal + '-' + golesVisitante + ').',
-                    minuto: String(60 + Math.floor(Math.random() * 30)),
-                    jornada,
-                    fuente: 'api'
-                  })
-                });
+                await supabaseFetch('/rest/v1/polemicas_candidatas', { method: 'POST', body: JSON.stringify({ partido: nombrePartido, titulo: '¿Hubo penalti no pitado en ' + nombrePartido + '?', descripcion: 'Partido decidido por la mínima (' + golesLocal + '-' + golesVisitante + ').', minuto: String(60 + Math.floor(Math.random() * 30)), jornada, fuente: 'api' }) });
               }
             }
           }
@@ -220,21 +171,8 @@ jobs:
           node -e "
           const CHAT_ID = '2028945169';
           const WEBHOOK_URL = 'https://hdkcyzbywdfoqwpmypoc.supabase.co/functions/v1/telegram-webhook';
-
           async function main() {
-            await fetch(WEBHOOK_URL, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-telegram-bot-api-secret-token': 'webhook123'
-              },
-              body: JSON.stringify({
-                message: {
-                  chat: { id: CHAT_ID },
-                  text: '/pendientes'
-                }
-              })
-            });
+            await fetch(WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-telegram-bot-api-secret-token': 'webhook123' }, body: JSON.stringify({ message: { chat: { id: CHAT_ID }, text: '/pendientes' } }) });
             console.log('Recordatorio enviado');
           }
           main().catch(console.error);
@@ -249,22 +187,8 @@ jobs:
           const SUPABASE_URL = 'https://hdkcyzbywdfoqwpmypoc.supabase.co';
           const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhka2N5emJ5d2Rmb3F3cG15cG9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzMxMDMsImV4cCI6MjA5NTAwOTEwM30.M3LlU4OzH8J8S7-N7CIVi0ovts5hQ1CrkFhfcXIlmr4';
 
-          const TAGS = {
-            'var': 'VAR', 'árbitro': 'Arbitraje', 'arbitro': 'Arbitraje',
-            'penalti': 'Arbitraje', 'expulsión': 'Arbitraje', 'expulsion': 'Arbitraje',
-            'fichaje': 'Fichajes', 'contrato': 'Fichajes', 'renovación': 'Fichajes',
-            'champions': 'Champions', 'liga': 'LaLiga', 'laliga': 'LaLiga',
-            'selección': 'Selección', 'seleccion': 'Selección',
-            'lesión': 'Lesiones', 'lesion': 'Lesiones',
-            'gol': 'Goles', 'resultado': 'Resultados'
-          };
-
-          const EMOJIS = {
-            'VAR': '📺', 'Arbitraje': '🟨', 'Fichajes': '🔄',
-            'Champions': '🏆', 'LaLiga': '⚽', 'Selección': '🇪🇸',
-            'Lesiones': '🏥', 'Goles': '⚽', 'Resultados': '📊', 'Noticia': '📰'
-          };
-
+          const TAGS = { 'var': 'VAR', 'árbitro': 'Arbitraje', 'arbitro': 'Arbitraje', 'penalti': 'Arbitraje', 'expulsión': 'Arbitraje', 'expulsion': 'Arbitraje', 'fichaje': 'Fichajes', 'contrato': 'Fichajes', 'renovación': 'Fichajes', 'champions': 'Champions', 'liga': 'LaLiga', 'laliga': 'LaLiga', 'selección': 'Selección', 'seleccion': 'Selección', 'lesión': 'Lesiones', 'lesion': 'Lesiones', 'gol': 'Goles', 'resultado': 'Resultados' };
+          const EMOJIS = { 'VAR': '📺', 'Arbitraje': '🟨', 'Fichajes': '🔄', 'Champions': '🏆', 'LaLiga': '⚽', 'Selección': '🇪🇸', 'Lesiones': '🏥', 'Goles': '⚽', 'Resultados': '📊', 'Noticia': '📰' };
           const RSS_FEEDS = [
             { medio: 'Marca', url: 'https://www.marca.com/rss/futbol.xml' },
             { medio: 'AS', url: 'https://feeds.as.com/mrss-s/pages/as/site/as.com/portada/' },
@@ -274,43 +198,31 @@ jobs:
             { medio: 'Diario Gol', url: 'https://diariogol.com/feed/' },
             { medio: 'El Confidencial', url: 'https://www.elconfidencial.com/rss/deportes/futbol/' }
           ];
-
           const EQUIPOS = ['real madrid','barcelona','atlético','athletic','sociedad','betis','villarreal','valencia','girona','rayo','osasuna','getafe','celta','sevilla','alavés','mallorca','espanyol','leganés','las palmas','valladolid'];
 
           function esFutbol(titulo) {
             const t = titulo.toLowerCase();
             return EQUIPOS.some(e => t.includes(e)) || ['fútbol','futbol','laliga','liga','champions','gol','portero','delantero'].some(p => t.includes(p));
           }
-
           function detectarTag(titulo) {
             const t = titulo.toLowerCase();
-            for (const [palabra, tag] of Object.entries(TAGS)) {
-              if (t.includes(palabra)) return tag;
-            }
+            for (const [palabra, tag] of Object.entries(TAGS)) { if (t.includes(palabra)) return tag; }
             return 'Noticia';
           }
-
+          function parsearFecha(fechaStr) {
+            if (!fechaStr) return null;
+            try { const d = new Date(fechaStr); if (!isNaN(d.getTime())) return d.toISOString(); } catch {}
+            return null;
+          }
           async function supabaseFetch(path, options = {}) {
-            const res = await fetch(SUPABASE_URL + path, {
-              ...options,
-              headers: {
-                'apikey': SUPABASE_KEY,
-                'Authorization': 'Bearer ' + SUPABASE_KEY,
-                'Content-Type': 'application/json',
-                ...(options.headers || {})
-              }
-            });
+            const res = await fetch(SUPABASE_URL + path, { ...options, headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', ...(options.headers || {}) } });
             const text = await res.text();
             if (!text) return [];
             try { return JSON.parse(text); } catch { return []; }
           }
-
           async function leerRSS(url) {
             try {
-              const res = await fetch(url, {
-                headers: { 'User-Agent': 'Mozilla/5.0' },
-                signal: AbortSignal.timeout(8000)
-              });
+              const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) });
               const text = await res.text();
               const items = [];
               const itemRegex = /<item>([\s\S]*?)<\/item>/g;
@@ -323,48 +235,80 @@ jobs:
                 if (titulo) items.push({ titulo: titulo.trim(), link, fecha });
               }
               return items;
-            } catch (e) {
-              console.log('Error RSS ' + url + ': ' + e.message);
-              return [];
-            }
+            } catch (e) { console.log('Error RSS ' + url + ': ' + e.message); return []; }
           }
-
           async function main() {
             console.log('=== Sincronizando noticias ===');
             let creadas = 0;
-
-            const limite = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+            const limite = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString();
             await supabaseFetch('/rest/v1/noticias?created_at=lt.' + limite, { method: 'DELETE' });
-
             for (const feed of RSS_FEEDS) {
               const items = await leerRSS(feed.url);
               console.log(feed.medio + ': ' + items.length + ' items');
-
               for (const item of items) {
                 if (!esFutbol(item.titulo)) continue;
-
+                const fechaPublicacion = parsearFecha(item.fecha);
+                if (fechaPublicacion && (Date.now() - new Date(fechaPublicacion)) / (1000 * 60 * 60 * 24) > 4) continue;
                 const existe = await supabaseFetch('/rest/v1/noticias?titulo=eq.' + encodeURIComponent(item.titulo));
                 if (existe.length > 0) continue;
-
                 const tag = detectarTag(item.titulo);
-                const emoji = EMOJIS[tag] || '📰';
-
-                await supabaseFetch('/rest/v1/noticias', {
-                  method: 'POST',
-                  body: JSON.stringify({
-                    titulo: item.titulo,
-                    tag,
-                    emoji,
-                    fuente: feed.medio,
-                    url: item.link
-                  })
-                });
+                await supabaseFetch('/rest/v1/noticias', { method: 'POST', body: JSON.stringify({ titulo: item.titulo, tag, emoji: EMOJIS[tag] || '📰', fuente: feed.medio, url: item.link, publicado_en: fechaPublicacion }) });
                 creadas++;
               }
             }
             console.log('Noticias creadas: ' + creadas);
-            console.log('=== Completado ===');
+          }
+          main().catch(console.error);
+          "
+
+  resultados:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sincronizar resultados de LaLiga
+        run: |
+          node -e "
+          const SUPABASE_URL = 'https://hdkcyzbywdfoqwpmypoc.supabase.co';
+          const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhka2N5emJ5d2Rmb3F3cG15cG9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzMxMDMsImV4cCI6MjA5NTAwOTEwM30.M3LlU4OzH8J8S7-N7CIVi0ovts5hQ1CrkFhfcXIlmr4';
+          const FOOTBALL_KEY = '024d98339ac040aa81e415079c09300f';
+
+          async function supabaseFetch(path, options = {}) {
+            const res = await fetch(SUPABASE_URL + path, { ...options, headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', ...(options.headers || {}) } });
+            const text = await res.text();
+            if (!text) return [];
+            try { return JSON.parse(text); } catch { return []; }
           }
 
+          async function main() {
+            console.log('=== Sincronizando resultados ===');
+            const res = await fetch('https://api.football-data.org/v4/competitions/PD/matches?season=2025', { headers: { 'X-Auth-Token': FOOTBALL_KEY } });
+            const data = await res.json();
+            const partidos = (data.matches || []).filter(p => p.status === 'FINISHED');
+            console.log('Partidos terminados: ' + partidos.length);
+            let creados = 0; let actualizados = 0;
+
+            for (const partido of partidos) {
+              const local = partido.homeTeam.shortName || partido.homeTeam.name;
+              const visitante = partido.awayTeam.shortName || partido.awayTeam.name;
+              const goles_local = partido.score?.fullTime?.home ?? 0;
+              const goles_visitante = partido.score?.fullTime?.away ?? 0;
+              const jornada = partido.matchday || 0;
+              const fecha = partido.utcDate || null;
+
+              const existe = await supabaseFetch('/rest/v1/resultados?jornada=eq.' + jornada + '&equipo_local=eq.' + encodeURIComponent(local) + '&equipo_visitante=eq.' + encodeURIComponent(visitante));
+
+              if (existe.length > 0) {
+                const r = existe[0];
+                if (r.goles_local !== goles_local || r.goles_visitante !== goles_visitante) {
+                  await supabaseFetch('/rest/v1/resultados?id=eq.' + r.id, { method: 'PATCH', body: JSON.stringify({ goles_local, goles_visitante }) });
+                  actualizados++;
+                }
+              } else {
+                await supabaseFetch('/rest/v1/resultados', { method: 'POST', body: JSON.stringify({ jornada, equipo_local: local, equipo_visitante: visitante, goles_local, goles_visitante, fecha }) });
+                creados++;
+              }
+            }
+            console.log('Creados: ' + creados + ' | Actualizados: ' + actualizados);
+            console.log('=== Completado ===');
+          }
           main().catch(console.error);
           "

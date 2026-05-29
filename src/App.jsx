@@ -8,6 +8,7 @@ import Noticias from './components/Noticias'
 import Foro from './components/Foro'
 import Perfil from './components/Perfil'
 import AdminPanel from './components/AdminPanel'
+import Resultados from './components/Resultados'
 
 const ADMIN_EMAIL = 'marcalonsopol0708@gmail.com'
 const EQUIPOS_DISPONIBLES = ['Real Madrid', 'FC Barcelona', 'Atlético de Madrid', 'Athletic Club', 'Real Sociedad', 'Real Betis', 'Villarreal CF', 'Valencia CF', 'Girona FC', 'Rayo Vallecano', 'Osasuna', 'Getafe CF', 'Celta de Vigo', 'Sevilla FC', 'Alavés', 'RCD Mallorca', 'Elche', 'Espanyol', 'Levante', 'Oviedo', 'Neutral / Sin equipo']
@@ -50,6 +51,7 @@ function App() {
       case 'foro': return <Foro usuario={usuario} abrirAuth={() => setModalAbierto(true)} />
       case 'perfil': return <Perfil usuario={usuario} setUsuario={setUsuario} />
       case 'admin': return usuario?.esAdmin ? <AdminPanel /> : <Hero onNavegar={setVista} />
+      case 'resultados': return <Resultados usuario={usuario} abrirAuth={() => setModalAbierto(true)} />
       default: return <Hero onNavegar={setVista} />
     }
   }
@@ -72,6 +74,7 @@ function App() {
               <span onClick={() => setVista('foro')}>Foro</span>
               <span onClick={() => setVista('tabla')}>Clasificación</span>
               <span onClick={() => setVista('noticias')}>Noticias</span>
+              <span onClick={() => setVista('resultados')}>Resultados</span>
             </div>
             <div>
               <h4>Legal</h4>

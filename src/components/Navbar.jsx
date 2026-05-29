@@ -2,6 +2,7 @@ export default function Navbar({ vistaActual, onNavegar, usuario, abrirAuth, tog
   const enlaces = [
     { id: "home", texto: "Inicio" },
     { id: "polemica", texto: "Polémicas" },
+    { id: "resultados", texto: "Resultados" },   
     { id: "tabla", texto: "Clasificación" },
     { id: "noticias", texto: "Noticias" },
     { id: "foro", texto: "Foro" }

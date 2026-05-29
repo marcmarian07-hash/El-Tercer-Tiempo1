@@ -1,23 +1,13 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../supabase' // ¡Corregido! Ahora se conecta con tu supabase.js
-
-// Ajustes calculados a partir de los votos (en el futuro esto vendrá 100% de BD)
-// Por ahora los definimos aquí y luego los cruzamos con los equipos reales de Supabase
-const AJUSTES = {
-  'Real Madrid':   -5,
-  'FC Barcelona':  -4,
-  'Atlético':      -3,
-  'Valencia CF':   -7,
-  'Real Betis':    -2,
-  'Villarreal':    -1,
-  'Real Sociedad':  0,
-  'Sevilla FC':     0,
-}
+import { supabase } from '../supabase'
 
 const BADGES = {
-  'Real Madrid': '👑', 'FC Barcelona': '🔵', 'Atlético': '🔴',
-  'Valencia CF': '🦇', 'Real Betis': '💚', 'Villarreal': '🟡',
-  'Real Sociedad': '⚪', 'Sevilla FC': '🌹',
+  'Real Madrid': '👑', 'FC Barcelona': '🔵', 'Atlético de Madrid': '🔴',
+  'Athletic Club': '🦁', 'Real Betis': '💚', 'Villarreal CF': '🟡',
+  'Real Sociedad': '⚪', 'Sevilla FC': '🌹', 'Valencia CF': '🦇',
+  'Girona FC': '🔴', 'Rayo Vallecano': '⚡', 'Osasuna': '🔴',
+  'Getafe CF': '🔵', 'Celta de Vigo': '🔵', 'Alavés': '🔵',
+  'RCD Mallorca': '🔴', 'Espanyol': '🔵', 'Leganés': '🔵',
 }
 
 function FilaEquipo({ equipo, posicion, index }) {
@@ -49,33 +39,62 @@ export default function Tabla() {
   const [equipos, setEquipos] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    async function load() {
-      // Corregido: Llamamos a 'supabase' en lugar de 'db'
-      const { data, error } = await supabase
-        .from('equipos')
-        .select('*')
-        .order('pts_oficiales', { ascending: false })
+  useEffect(() => { load() }, [])
 
-      if (error || !data?.length) { setLoading(false); return }
+  async function load() {
+    const { data: resultados } = await supabase.from('resultados').select('*')
+    const { data: pols } = await supabase.from('polemicas').select('*')
+    const { data: vts } = await supabase.from('votos').select('polemica_id, tipo')
 
-      const mapped = data.map(eq => ({
-        nombre: eq.nombre,
-        ptsReal: eq.pts_oficiales,
-        ptsLloro: eq.pts_oficiales + (AJUSTES[eq.nombre] || 0),
-      })).sort((a, b) => b.ptsLloro - a.ptsLloro)
+    if (!resultados?.length) { setLoading(false); return }
 
-      setEquipos(mapped)
-      setLoading(false)
-    }
-    load()
-  }, [])
+    const conteos = {}
+    ;(vts || []).forEach(v => {
+      if (!conteos[v.polemica_id]) conteos[v.polemica_id] = { robo: 0, acierto: 0 }
+      conteos[v.polemica_id][v.tipo]++
+    })
+
+    const tabla = {}
+    resultados.forEach(r => {
+      if (!tabla[r.equipo_local]) tabla[r.equipo_local] = { nombre: r.equipo_local, ptsReal: 0, ptsLloro: 0 }
+      if (!tabla[r.equipo_visitante]) tabla[r.equipo_visitante] = { nombre: r.equipo_visitante, ptsReal: 0, ptsLloro: 0 }
+
+      const gl = r.goles_local, gv = r.goles_visitante
+      const ptsL = gl > gv ? 3 : gl === gv ? 1 : 0
+      const ptsV = gv > gl ? 3 : gl === gv ? 1 : 0
+      tabla[r.equipo_local].ptsReal += ptsL
+      tabla[r.equipo_visitante].ptsReal += ptsV
+
+      let ajLocal = 0, ajVisitante = 0
+      ;(pols || []).filter(p =>
+        p.partido?.toLowerCase().includes(r.equipo_local?.toLowerCase()) ||
+        p.partido?.toLowerCase().includes(r.equipo_visitante?.toLowerCase())
+      ).forEach(p => {
+        const c = conteos[p.id] || { robo: 0, acierto: 0 }
+        const total = c.robo + c.acierto
+        if (total > 0 && c.robo / total > 0.6) {
+          if (p.equipo_perjudicado?.toLowerCase().includes(r.equipo_local?.toLowerCase())) ajLocal++
+          else ajVisitante++
+        }
+      })
+
+      const glAdj = gl + ajLocal, gvAdj = gv + ajVisitante
+      const ptsLAdj = glAdj > gvAdj ? 3 : glAdj === gvAdj ? 1 : 0
+      const ptsVAdj = gvAdj > glAdj ? 3 : glAdj === gvAdj ? 1 : 0
+      tabla[r.equipo_local].ptsLloro += ptsLAdj
+      tabla[r.equipo_visitante].ptsLloro += ptsVAdj
+    })
+
+    const mapped = Object.values(tabla).sort((a, b) => b.ptsLloro - a.ptsLloro)
+    setEquipos(mapped)
+    setLoading(false)
+  }
 
   const compartir = () => {
     if (!equipos.length) return
     const lider = equipos[0]
     const texto = encodeURIComponent(
-      `Según el Llorómetro, ${lider.nombre} lidera La Liga Real con ${lider.ptsLloro} pts. ¿Estás de acuerdo? 👉 llorometro.es`
+      `Según El Tercer Tiempo, ${lider.nombre} lidera La Liga Real con ${lider.ptsLloro} pts. ¿Estás de acuerdo? 👉 eltercertiempo.es`
     )
     window.open(`https://twitter.com/intent/tweet?text=${texto}`, '_blank')
   }
@@ -84,6 +103,14 @@ export default function Tabla() {
     <section style={styles.section}>
       <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted-color)', fontSize: '13px' }}>
         Cargando clasificación...
+      </div>
+    </section>
+  )
+
+  if (!equipos.length) return (
+    <section style={styles.section}>
+      <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted-color)', fontSize: '13px' }}>
+        No hay datos de clasificación todavía. Los resultados se sincronizan automáticamente cada hora.
       </div>
     </section>
   )
@@ -168,6 +195,6 @@ const styles = {
   shareBtn: {
     backgroundColor: 'var(--text-color)', color: 'var(--bg-color)',
     padding: '8px 16px', borderRadius: '6px', fontWeight: '800',
-    cursor: 'pointer', border: 'none', fontSize: '13px',
+        cursor: 'pointer', border: 'none', fontSize: '13px',
   },
 }
